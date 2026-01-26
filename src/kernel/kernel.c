@@ -22,7 +22,7 @@ void kernel_main(struct multiboot_info* mbi) {
     
     // ZAMALUJ CAŁY EKRAN NA CZERWONO (Test połączenia)
     // Używamy prostej liczby, bo wiemy że szerokość to 1280
-    for (unsigned int i = 0; i < 1280 * 720; i++) {
+    for (unsigned int i = 0; i < 1280 * 1280; i++) {
         fb[i] = 0xFF0000; // Czysty czerwony
     }
 
