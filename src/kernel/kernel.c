@@ -1,30 +1,27 @@
-struct multiboot_info {
-    unsigned int flags;
-    unsigned int unused[10];
-    unsigned int framebuffer_addr;
-    unsigned int framebuffer_pitch;
-    unsigned int framebuffer_width;
-    unsigned int framebuffer_height;
-    unsigned char framebuffer_bpp;
-};
+#include "common.h"
 
-void kernel_main(struct multiboot_info* mbi) {
-    // Sprawdźmy czy GRUB w ogóle podał nam adres
-    if (!(mbi->flags & (1 << 11))) {
-        // Jeśli tu wejdzie, to znaczy że GRUB nie ustawił trybu graficznego
-        // Wtedy na starym porcie tekstowym wypiszemy błąd (0xB8000)
-        char* vga = (char*)0xB8000;
-        vga[0] = 'E'; vga[1] = 0x0C; // Czerwone 'E'
-        while(1);
+// Adres fizyczny ramki obrazu (może się różnić, zależy od QEMU/Karty)
+// W wersji profesjonalnej pobieramy go z mbi->framebuffer_addr
+uint32_t* framebuffer = (uint32_t*)0xFD000000;
+
+void put_pixel(int x, int y, uint32_t color) {
+    framebuffer[y * 1024 + x] = color;
+}
+
+void clear_screen_graphic(uint32_t color) {
+    for (int i = 0; i < 1024 * 768; i++) {
+        framebuffer[i] = color;
     }
+}
 
-    unsigned int* fb = (unsigned int*)(unsigned long)mbi->framebuffer_addr;
-    
-    // ZAMALUJ CAŁY EKRAN NA CZERWONO (Test połączenia)
-    // Używamy prostej liczby, bo wiemy że szerokość to 1280
-    for (unsigned int i = 0; i < 1280 * 1280; i++) {
-        fb[i] = 0xFF0000; // Czysty czerwony
+void kernel_main(void* mbi) {
+    // Ciemne, gwieździste niebo dla StarOS
+    clear_screen_graphic(0x000011); // Bardzo ciemny niebieski
+
+    // Rysujemy prosty kwadrat (nasza "gwiazda")
+    for(int y = 100; y < 110; y++) {
+        for(int x = 100; x < 110; x++) {
+            put_pixel(x, y, 0xFFFFFF); // Biały
+        }
     }
-
-    while(1);
 }
