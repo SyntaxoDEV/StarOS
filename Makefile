@@ -1,62 +1,57 @@
-# StarOS Makefile
-OS_NAME = StarOS
-BIN_DIR = bin
-SRC_DIR = src
-OBJ_DIR = obj
+# Nazwa systemu
+OS_NAME = staros
 
 # Narzędzia
-AS = nasm
 CC = gcc
+AS = nasm
 LD = ld
 
-# Flagi
+# Flagi kompilacji
+# -Isrc/include pozwala na używanie #include "plik.h" bez ../
+CFLAGS = -m32 -ffreestanding -O2 -Wall -Wextra -fno-stack-protector -nostdlib -Isrc/include
 ASFLAGS = -f elf32
-CFLAGS = -m32 -ffreestanding -O2 -Wall -I$(SRC_DIR)/kernel
 LDFLAGS = -m elf_i386 -T linker.ld
 
-# Ścieżki do plików
-BOOT_SRC = $(SRC_DIR)/boot/boot.asm
-KERNEL_SRC = $(SRC_DIR)/kernel/kernel.c
-BOOT_OBJ = $(OBJ_DIR)/boot.o
-KERNEL_OBJ = $(OBJ_DIR)/kernel.o
+# Pliki obiektowe - dodaliśmy cpu.o i shell.o
+OBJS = build/boot.o \
+       build/kernel.o \
+       build/io.o \
+       build/keyboard.o \
+       build/screen.o \
+       build/shell.o \
+       build/cpu.o
 
-KERNEL_BIN = $(BIN_DIR)/staros.bin
-ISO_NAME = staros.iso
+.PHONY: all clean run
 
-all: setup $(ISO_NAME)
+all: build_dir $(OS_NAME).iso
 
-# Tworzenie potrzebnych folderów
-setup:
-	@mkdir -p $(OBJ_DIR)
-	@mkdir -p $(BIN_DIR)
+# Tworzenie folderu na pliki binarne
+build_dir:
+	@mkdir -p build
 
-# Kompilacja Bootloadera
-$(BOOT_OBJ): $(BOOT_SRC)
+# Kompilacja Asemblera (Bootloader)
+build/boot.o: src/boot/boot.s
 	$(AS) $(ASFLAGS) $< -o $@
 
-# Kompilacja Kernela
-$(KERNEL_OBJ): $(KERNEL_SRC)
+# Kompilacja plików C
+build/%.o: src/kernel/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Linkowanie
-$(KERNEL_BIN): $(BOOT_OBJ) $(KERNEL_OBJ)
-	$(LD) $(LDFLAGS) -o $@ $^
+# Linkowanie jądra
+$(OS_NAME).bin: $(OBJS)
+	$(LD) $(LDFLAGS) -o $@ $(OBJS)
 
-# Tworzenie ISO
-$(ISO_NAME): $(KERNEL_BIN)
+# Tworzenie obrazu ISO (wymaga grub-mkrescue i xorriso)
+$(OS_NAME).iso: $(OS_NAME).bin
 	@mkdir -p isodir/boot/grub
-	cp $(KERNEL_BIN) isodir/boot/staros.bin
-	@echo 'set timeout=0' > isodir/boot/grub/grub.cfg
-	@echo 'set default=0' >> isodir/boot/grub/grub.cfg
-	@echo 'menuentry "StarOS" {' >> isodir/boot/grub/grub.cfg
-	@echo '	multiboot /boot/staros.bin' >> isodir/boot/grub/grub.cfg
-	@echo '	boot' >> isodir/boot/grub/grub.cfg
-	@echo '}' >> isodir/boot/grub/grub.cfg
-	grub-mkrescue -o $(ISO_NAME) isodir
-	@rm -rf isodir
+	cp $(OS_NAME).bin isodir/boot/
+	@printf 'set timeout=0\nset default=0\nmenuentry "StarOS" {\n  multiboot /boot/staros.bin\n  boot\n}' > isodir/boot/grub/grub.cfg
+	grub-mkrescue -o $(OS_NAME).iso isodir
 
+# Uruchamianie w QEMU z dużą ilością RAMu (1GB)
+run: all
+	qemu-system-i386 -m 1024M -cdrom $(OS_NAME).iso
+
+# Czyszczenie projektu
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR) $(ISO_NAME)
-
-run: $(ISO_NAME)
-	qemu-system-i386 -cdrom staros.iso
+	rm -rf build isodir $(OS_NAME).bin $(OS_NAME).iso
